@@ -6,6 +6,7 @@ All notable changes are recorded here. This project follows the [Keep a Changelo
 
 ### Changed
 
+- Runtime state relocated to the plugin data directory `~/.hermes/hermes-safeagents/` (default profile only; mirrors the historical `trial/` sublayout so all path derivations and fixtures stay valid). Store, journal and venv defaults no longer reference any source checkout.
 - Repository split: the Hermes security plugin was extracted from `safeagents-eval` into this standalone repository (history preserved via git-filter-repo; extraction point `safeagents-eval@pre-split-baseline`). Trusted runtime code (`judge_adapter.py`, `replay_model.py`, `observe.py`, `observation.py`, `decision_models.py`, plus the GGUF metadata reader and replay safety audit hook vendored from the eval repo) now ships inside the package and loads only from the package's own directory — the plugin no longer reads code or launch recipes from the evaluation checkout.
 - Plugin identity renamed `local-agent-security` → `hermes-safeagents` (plugin.yaml, desktop manifest + UI id, telemetry logger and event-id namespace, internal module aliases). Event-id UUIDs generated before the redeploy keep their old namespace; stored records and labels are unaffected.
 

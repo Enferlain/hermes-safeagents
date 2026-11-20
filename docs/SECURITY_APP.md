@@ -2,11 +2,10 @@
 
 ## Scope
 
-> **Repo split transition (2026-11-20).** Source now lives in
-> `~/Projects/hermes-safeagents` (`src/hermes_safeagents/`); installed targets
-> keep the paths below under the new `hermes-safeagents` identity after the
-> redeploy step. Runtime-state paths (`trial/…`, `.venv-trial`) still resolve
-> in the legacy `~/Projects/safeagents-eval` checkout until state relocation.
+> **State location.** Runtime state (`trial/…` subpaths, `.venv-trial`) lives
+> in `~/.hermes/hermes-safeagents/` (default profile only), not in a source
+> checkout. Source references below that still name legacy paths predate the
+> move.
 
 The desktop is the viewer/controller; the Hermes execution backend owns enforcement and approvals. SafeAgents remains whole-stack log-only at provisional cutoff 0.88. No new live blocking rules, automatic provider switches, host services, OpenShell changes, or credential changes are part of this deployment.
 

@@ -101,10 +101,9 @@ def model_catalog():
 class SecurityService:
     def __init__(self, repo_root=None, hermes_home=None, stack_components=None):
         # repo_root is the runtime-STATE root (private-observation store, journals,
-        # the trusted check venv). TEMPORARY during the repo split: it still defaults
-        # to the legacy safeagents-eval checkout; the state-relocation step replaces
-        # this default with a proper plugin data directory.
-        self.repo_root = Path(repo_root or Path.home() / 'Projects/safeagents-eval').absolute()
+        # the trusted check venv). State lives under the plugin data directory,
+        # never inside a source checkout.
+        self.repo_root = Path(repo_root or Path.home() / '.hermes/hermes-safeagents').absolute()
         # Trusted runtime code ships with this package and always loads from its own
         # directory, never from the state root or the evaluation checkout.
         self.package_root = Path(__file__).resolve().parent

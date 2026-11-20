@@ -59,9 +59,7 @@ class PrivateParser(argparse.ArgumentParser):
 def main(argv=None, *, store_factory=None):
     try:
         parser = PrivateParser(description='Private local observation review; log-only, no enforcement changes.')
-        # TEMPORARY during the repo split: the observation store still lives in the
-        # legacy safeagents-eval checkout; the state-relocation step replaces this.
-        parser.add_argument('--store', default=str(Path.home() / 'Projects/safeagents-eval/trial/private-observation'))
+        parser.add_argument('--store', default=str(Path.home() / '.hermes/hermes-safeagents/trial/private-observation'))
         commands = parser.add_subparsers(dest='command', required=True)
         commands.add_parser('status')
         replay_args = commands.add_parser('replay')

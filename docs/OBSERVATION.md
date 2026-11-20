@@ -2,14 +2,11 @@
 
 ## Current behavior
 
-> **Repo split transition (2026-11-20).** The plugin source moved to
-> `~/Projects/hermes-safeagents` (`src/hermes_safeagents/`). During the split
-> transition the deployed runtime and these procedures still reference the
-> legacy `~/Projects/safeagents-eval/trial/` checkout for runtime state
-> (observation store, journals, `.venv-trial`) — those paths move in the
-> state-relocation step, and the duplicated copies in the eval checkout remain
-> in place until the eval cleanup step. The new repository needs no eval
-> checkout for code.
+> **State location.** Runtime state (observation store, journals, logs, the
+> trusted check venv) lives in `~/.hermes/hermes-safeagents/` (default profile
+> only), not in any source checkout. The command examples below predate the
+> move and show legacy `trial/` paths — substitute the data-directory paths
+> when running them by hand.
 
 The adapter on `127.0.0.1:18873` captures each judge request in `trial/private-observation/calls.jsonl`, including exact System One input, the actual live judge's full-precision score, provisional would-block marker, input/policy hashes, backend weight/template/calibration/build provenance, timestamp and correlation UUID. Errors are recorded as errors, never fabricated allow scores. Parse failures without a usable input remain errors and are not replayed.
 

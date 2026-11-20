@@ -169,7 +169,7 @@ class TelemetryTests(unittest.TestCase):
                 module.register(Context())
                 self.assertEqual(set(hooks), {'pre_api_request','pre_tool_call','post_tool_call'})
                 hooks['pre_api_request'](session_id='fixture-session', provider='openai-codex')
-                self.assertTrue((home/'Projects/safeagents-eval/trial/private-observation/security-routes.jsonl').exists())
+                self.assertTrue((home/'.hermes/hermes-safeagents/trial/private-observation/security-routes.jsonl').exists())
                 hooks.clear()
                 constants.get_hermes_home = lambda:home/'.hermes/profiles/other'
                 module.register(Context())

@@ -142,8 +142,7 @@ def main(argv=None, *, store_factory=None):
     try:
         parser = PrivateParser(description=__doc__, allow_abbrev=False)
         parser.add_argument('--model', required=True, choices=tuple(MODEL_SPECS))
-        # TEMPORARY during the repo split: store lives in the legacy eval checkout.
-        parser.add_argument('--store', type=Path, default=Path.home() / 'Projects/safeagents-eval/trial/private-observation')
+        parser.add_argument('--store', type=Path, default=Path.home() / '.hermes/hermes-safeagents/trial/private-observation')
         parser.add_argument('--limit', type=int, default=0, help='maximum scores; 0 means all eligible captures')
         parser.add_argument('--include-probes', action='store_true')
         args = parser.parse_args(argv)

@@ -36,10 +36,11 @@ Evaluation and benchmark work lives separately in
 ## Runtime state
 
 Observation captures, journals, replay logs and the trusted check venv are
-runtime state, not source. During the repo split they still live in the legacy
-`~/Projects/safeagents-eval/trial/` checkout — every such default carries a
-`TEMPORARY` marker in the source; the state-relocation step replaces them with
-a dedicated plugin data directory.
+runtime state, not source. They live under the plugin data directory
+`~/.hermes/hermes-safeagents/` (default profile only), which mirrors the
+historical `trial/` layout — `trial/private-observation/`,
+`trial/journal.jsonl`, `trial/logs/`, `.venv-trial/`. No state lives inside a
+source checkout.
 
 ## Development
 
