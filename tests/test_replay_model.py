@@ -10,6 +10,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+# Trusted runtime modules ship in the package; load them from there.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
+
 from test_observe import FixtureStore, capture
 
 
@@ -136,7 +139,7 @@ assert before == (list(sys.path), os.getcwd(), sys.dont_write_bytecode)
 print('imports inert')
 '''
         result = subprocess.run([sys.executable, '-c', script,
-                                 str(module.ROOT / 'trial')], capture_output=True, text=True, check=False,
+                                 str(module.ROOT)], capture_output=True, text=True, check=False,
                                 env=dict(os.environ, PYTHONDONTWRITEBYTECODE='1'))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), 'imports inert')

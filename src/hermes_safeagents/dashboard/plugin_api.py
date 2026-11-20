@@ -26,7 +26,7 @@ class PrivateRoute(APIRoute):
         return handle
 
 # Direct-path loading supports the installed kebab-case plugin directory.
-_name = '_local_agent_security_service'
+_name = '_hermes_safeagents_service'
 if _name not in sys.modules:
     _spec = importlib.util.spec_from_file_location(_name, Path(__file__).resolve().parents[1] / 'service.py')
     _module = importlib.util.module_from_spec(_spec)

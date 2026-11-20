@@ -100,8 +100,8 @@ def model_info(base_url):
     match=re.fullmatch(r'D:/textgen/models/decision/(vllm-d3-lite-Q8_0\.gguf|qev-0\.8b-text-Q8_0\.gguf)',native_path)
     if match is None:raise ValueError('unexpected local model path; provenance not established')
     local_path=Path('/mnt/d/textgen/models/decision')/match.group(1)
-    sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-    from run import metadata
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from gguf_metadata import metadata
     gguf=metadata(local_path)
     with local_path.open('rb') as handle:digest=hashlib.file_digest(handle,'sha256').hexdigest()
     native=gguf['metadata']

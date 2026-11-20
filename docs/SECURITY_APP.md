@@ -2,9 +2,15 @@
 
 ## Scope
 
+> **Repo split transition (2026-11-20).** Source now lives in
+> `~/Projects/hermes-safeagents` (`src/hermes_safeagents/`); installed targets
+> keep the paths below under the new `hermes-safeagents` identity after the
+> redeploy step. Runtime-state paths (`trial/…`, `.venv-trial`) still resolve
+> in the legacy `~/Projects/safeagents-eval` checkout until state relocation.
+
 The desktop is the viewer/controller; the Hermes execution backend owns enforcement and approvals. SafeAgents remains whole-stack log-only at provisional cutoff 0.88. No new live blocking rules, automatic provider switches, host services, OpenShell changes, or credential changes are part of this deployment.
 
-Source package: `trial/security-plugin/`. Backend target: default-profile `~/.hermes/plugins/local-agent-security/`. Windows desktop target: `%LOCALAPPDATA%/hermes/desktop-plugins/local-agent-security/plugin.js`. The Windows UI and WSL backend are separate installation halves. Do not install into another Hermes profile.
+Source package: `src/hermes_safeagents/` (repository `~/Projects/hermes-safeagents`). Backend target: default-profile `~/.hermes/plugins/hermes-safeagents/`. Windows desktop target: `%LOCALAPPDATA%/hermes/desktop-plugins/hermes-safeagents/plugin.js`. The Windows UI and WSL backend are separate installation halves. Do not install into another Hermes profile.
 
 ## Managed-run monitoring — source verification, deployment pending
 

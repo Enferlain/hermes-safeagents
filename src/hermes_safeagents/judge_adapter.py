@@ -6,7 +6,7 @@ systemone noul payload, scores it on the selected local decision model, and retu
 a strict JSON verdict. Threshold is provisional (benchmark-derived, test-set
 selected): 0.88.
 
-Run: .venv-trial/bin/python trial/judge_adapter.py [port] --model {lite,qev}
+Run: <venv>/bin/python src/hermes_safeagents/judge_adapter.py [port] --model {lite,qev}
 Env: LLAMA_URL (default http://127.0.0.1:18872), THRESHOLD (default 0.88)
 """
 import argparse

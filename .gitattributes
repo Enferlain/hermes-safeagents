@@ -7,5 +7,4 @@
 *.js text eol=lf
 *.mjs text eol=lf
 *.sh text eol=lf
-# Preserve upstream license bytes exactly; receipts include original line endings.
-licenses/**/*.txt -text -whitespace
+

@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-PATH = Path(__file__).parent / 'security-plugin' / 'telemetry.py'
+PATH = Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents' / 'telemetry.py'
 
 class TelemetryTests(unittest.TestCase):
     def module(self):
@@ -131,7 +131,7 @@ class TelemetryTests(unittest.TestCase):
             pre_api_request = pre_tool_call = post_tool_call = unavailable
         module.register_observers(Context(), Broken())
         for name in ('pre_api_request', 'pre_tool_call', 'post_tool_call'):
-            with self.subTest(hook=name), self.assertLogs('local-agent-security', level='WARNING') as log:
+            with self.subTest(hook=name), self.assertLogs('hermes-safeagents', level='WARNING') as log:
                 self.assertIsNone(callbacks[name]())
             self.assertIn('execution not intercepted', str(log.output))
             self.assertNotIn('INERT_PRIVATE', str(log.output))

@@ -4,6 +4,18 @@ All notable changes are recorded here. This project follows the [Keep a Changelo
 
 ## [Unreleased]
 
+### Changed
+
+- Repository split: the Hermes security plugin was extracted from `safeagents-eval` into this standalone repository (history preserved via git-filter-repo; extraction point `safeagents-eval@pre-split-baseline`). Trusted runtime code (`judge_adapter.py`, `replay_model.py`, `observe.py`, `observation.py`, `decision_models.py`, plus the GGUF metadata reader and replay safety audit hook vendored from the eval repo) now ships inside the package and loads only from the package's own directory — the plugin no longer reads code or launch recipes from the evaluation checkout.
+- Plugin identity renamed `local-agent-security` → `hermes-safeagents` (plugin.yaml, desktop manifest + UI id, telemetry logger and event-id namespace, internal module aliases). Event-id UUIDs generated before the redeploy keep their old namespace; stored records and labels are unaffected.
+
+### Notes
+
+- Runtime state (observation store, journals, replay logs, the trusted check venv) deliberately still lives in the legacy `~/Projects/safeagents-eval/trial/` checkout; every such default carries a `TEMPORARY` marker and the state-relocation step will replace it.
+- The pre-split changelog entries below are shared history from `safeagents-eval`, kept for ancestry continuity.
+
+## [Unreleased — pre-split, shared with safeagents-eval]
+
 ### Fixed
 
 - Stack-start cold-boot robustness: the decision-model wait deadline is 120s (measured model load is ~2s; the real variable is Windows process start after reboot), dependents declared via `requires` are skipped — not launched blind — when it expires, and the judge adapter retries its identity probe for a bounded 60s window (PROBE_RETRY_SECONDS) instead of dying on the first 503 from a still-starting sibling. Same probe, same verification, retried.

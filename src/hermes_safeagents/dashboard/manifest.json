@@ -1,5 +1,5 @@
 {
-  "name": "local-agent-security",
+  "name": "hermes-safeagents",
   "label": "Security",
   "description": "Local log-only observation status and owner-initiated review",
   "icon": "Shield",

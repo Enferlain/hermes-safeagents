@@ -1,0 +1,19 @@
+[project]
+name = "hermes-safeagents"
+version = "0.1.0"
+description = "Hermes plugin: SafeAgents-powered local security observation, private review and offline replay runtime"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+dependencies = [
+  "fastapi==0.133.1",
+  "httpx==0.28.1",
+  "safeagents @ git+https://github.com/huggingface/safeagents@dcf38e0a911d6e6a53966d46ecf1d9d6b86e3c01",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 120

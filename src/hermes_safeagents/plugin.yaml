@@ -1,4 +1,4 @@
-name: local-agent-security
+name: hermes-safeagents
 version: 0.1.0
 description: Local security observation, private review and native approval integration status.
 author: Imi

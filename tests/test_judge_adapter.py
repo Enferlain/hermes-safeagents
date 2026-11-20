@@ -9,6 +9,11 @@ import urllib.error
 import urllib.request
 from unittest.mock import patch
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
+
 import judge_adapter as adapter
 from safeagents.guard import Config, analyze
 from safeagents.judge import Judge

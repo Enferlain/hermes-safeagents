@@ -3,12 +3,14 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
+PKG = ROOT.parent / 'src' / 'hermes_safeagents'
 PYTHON = '/nix/store/ak6rvbv8nzzxdsac1rhkp58vmjy6f86j-hermes-agent-env/bin/python3.14'
 
 
@@ -25,10 +27,17 @@ class SecurityTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.repo = Path(self.temp.name) / 'repo'
         self.home = Path(self.temp.name) / 'hermes'
+        # Fixture package dir: the service runs from its own copied directory the
+        # way the deployed plugin does, keeping trusted loads and stub scripts
+        # isolated from the real source tree.
+        self.pkg = Path(self.temp.name) / 'pkg'
+        self.pkg.mkdir()
+        for source in sorted(PKG.glob('*.py')):
+            shutil.copyfile(source, self.pkg / source.name)
         self.store = self.repo / 'trial/private-observation'
         self.store.mkdir(parents=True, mode=0o700)
         self.home.mkdir()
-        self.mod = load('security_test_service', ROOT / 'security-plugin/service.py')
+        self.mod = load('security_test_service', self.pkg / 'service.py')
         self.service = self.mod.SecurityService(repo_root=self.repo, hermes_home=self.home)
 
     def write(self, name, rows):
@@ -40,7 +49,7 @@ class SecurityTests(unittest.TestCase):
     def client(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        api = load('security_test_api', ROOT / 'security-plugin/dashboard/plugin_api.py')
+        api = load('security_test_api', PKG / 'dashboard' / 'plugin_api.py')
         api.service = self.service
         app = FastAPI()
         app.include_router(api.router)
@@ -81,7 +90,7 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(status['observation']['state'], 'unknown')
 
     def test_payloadless_producer_error_does_not_poison_good_captures(self):
-        observation = load('security_test_observation', ROOT / 'observation.py')
+        observation = load('security_test_observation', PKG / 'observation.py')
         store = observation.Store(self.store)
         good = observation.new_capture(
             {'state': {'secret': 'TOPSECRET'}, 'questions': {'block': 'fixture policy'}},
@@ -114,7 +123,7 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual((self.store / 'calls.jsonl').stat().st_mode & 0o777, 0o600)
 
     def test_null_capture_hashes_require_explicit_payloadless_error(self):
-        observation = load('security_test_observation', ROOT / 'observation.py')
+        observation = load('security_test_observation', PKG / 'observation.py')
         failure = observation.new_capture(None, None, .88, {}, error='ValueError')
         malformed = [dict(failure, payload={}), dict(failure, error=None),
                      dict(failure, error=''), dict(failure, error='TOPSECRET exception text'),
@@ -134,8 +143,6 @@ class SecurityTests(unittest.TestCase):
 
     def test_explicit_inspection_and_existing_id_local_label(self):
         import shutil
-        for name in ('observation.py', 'observe.py', 'decision_models.py'):
-            shutil.copyfile(ROOT / name, self.repo / 'trial' / name)
         capture = self.capture()
         self.write('calls.jsonl', [capture])
         client = self.client()
@@ -168,7 +175,7 @@ class SecurityTests(unittest.TestCase):
         executable = self.repo / '.venv-trial/bin/python'
         executable.parent.mkdir(parents=True)
         executable.symlink_to(PYTHON)
-        script = self.repo / 'trial/replay_model.py'
+        script = self.pkg / 'replay_model.py'
         script.write_text('import time; print("TOPSECRET", flush=True); time.sleep(.4)\n')
         client = self.client()
         self.assertEqual(client.get('/replay').json()['state'], 'idle')
@@ -204,7 +211,7 @@ class SecurityTests(unittest.TestCase):
         executable = self.repo / '.venv-trial/bin/python'
         executable.parent.mkdir(parents=True)
         executable.symlink_to(sys.executable)
-        (self.repo / 'trial/replay_model.py').write_text('import time; time.sleep(30)\n')
+        (self.pkg / 'replay_model.py').write_text('import time; time.sleep(30)\n')
         def stop(process):
             if process.poll() is None:
                 process.terminate()
@@ -323,8 +330,6 @@ class SecurityTests(unittest.TestCase):
     def test_journal_labels_bind_to_content_and_match_cli(self):
         import hashlib
         import shutil
-        for name in ('observation.py', 'observe.py', 'decision_models.py'):
-            shutil.copyfile(ROOT / name, self.repo / 'trial' / name)
         capture = self.capture()
         self.write('calls.jsonl', [capture])
         journal = self.repo / 'trial/journal.jsonl'
@@ -340,7 +345,7 @@ class SecurityTests(unittest.TestCase):
         self.assertNotEqual(first['id'], legacy)
         self.assertIsNone(first['human_label'])
         self.assertEqual(client.post('/label', json={'id': first['id'], 'value': 'authorized'}).status_code, 200)
-        cli = load('journal_identity_cli', ROOT / 'observe.py')
+        cli = load('journal_identity_cli', self.pkg / 'observe.py')
         self.assertEqual(cli.journal_rows([journal], [capture])[1][0]['id'], first['id'])
         # Whitespace/key order and later appends do not invalidate the original review.
         journal.write_text(json.dumps(row, sort_keys=True, separators=(',', ':')) + '\n'
@@ -532,8 +537,6 @@ class SecurityTests(unittest.TestCase):
 
     def test_journal_labels_remain_local_and_missing_counts_unknown(self):
         import shutil
-        for name in ('observation.py', 'observe.py', 'decision_models.py'):
-            shutil.copyfile(ROOT / name, self.repo / 'trial' / name)
         (self.repo / 'trial/journal.jsonl').write_text(json.dumps(dict(id=1, time=2, judge=None, verdict='flagged')) + '\n')
         client = self.client()
         event = client.get('/events?all_sessions=true').json()['events'][0]
@@ -545,8 +548,8 @@ class SecurityTests(unittest.TestCase):
         self.assertIsNone(counts['replay_attempts'])
 
     def test_manifest_declares_only_plugin_api(self):
-        manifest = json.loads((ROOT / 'security-plugin/dashboard/manifest.json').read_text())
-        self.assertEqual(manifest['name'], 'local-agent-security')
+        manifest = json.loads((PKG / 'dashboard' / 'manifest.json').read_text())
+        self.assertEqual(manifest['name'], 'hermes-safeagents')
         self.assertEqual(manifest['api'], 'plugin_api.py')
 
     def test_corrupt_journal_status_is_degraded_and_qev_hashes_must_match(self):
@@ -619,7 +622,7 @@ class StackControlTests(unittest.TestCase):
             probe.bind(('127.0.0.1', 0))
             self.ports.append(probe.getsockname()[1])
             probe.close()
-        self.mod = load('security_test_stack', ROOT / 'security-plugin/service.py')
+        self.mod = load('security_test_stack', PKG / 'service.py')
         self.service = self.mod.SecurityService(
             repo_root=self.repo, hermes_home=self.home,
             stack_components=self._components())
@@ -783,7 +786,7 @@ class StackControlTests(unittest.TestCase):
     def client(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        api = load('security_test_api_stack', ROOT / 'security-plugin/dashboard/plugin_api.py')
+        api = load('security_test_api_stack', PKG / 'dashboard' / 'plugin_api.py')
         api.service = self.service
         app = FastAPI()
         app.include_router(api.router)
@@ -802,10 +805,15 @@ class CorrelationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.repo = Path(self.temp.name) / 'repo'
         self.home = Path(self.temp.name) / 'hermes'
+        # Fixture package dir, same deployed-layout isolation as SecurityTests.
+        self.pkg = Path(self.temp.name) / 'pkg'
+        self.pkg.mkdir()
+        for source in sorted(PKG.glob('*.py')):
+            shutil.copyfile(source, self.pkg / source.name)
         self.store = self.repo / 'trial/private-observation'
         self.store.mkdir(parents=True, mode=0o700)
         self.home.mkdir()
-        self.mod = load('security_test_correlation', ROOT / 'security-plugin/service.py')
+        self.mod = load('security_test_correlation', self.pkg / 'service.py')
         self.service = self.mod.SecurityService(repo_root=self.repo, hermes_home=self.home)
 
     def write(self, name, rows):

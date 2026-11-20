@@ -137,7 +137,7 @@ class RunFixture:
                 [f"{s['id']} ({s['severity']})" for s in signals], judge, call_id)
         return buffer.getvalue()
 
-MODULE = Path(__file__).parent / "security-plugin" / "managed_monitor.py"
+MODULE = Path(__file__).resolve().parents[1] / "src" / "hermes_safeagents" / "managed_monitor.py"
 
 
 def load_monitor():

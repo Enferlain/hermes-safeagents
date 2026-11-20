@@ -1,6 +1,10 @@
 """Trusted model selection and public identity; inert fixtures only."""
 import importlib.util
+import sys
 import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
 
 
 class DecisionModelsTests(unittest.TestCase):

@@ -14,7 +14,7 @@ from decision_models import MODEL_SPECS, get_model
 from observation import Store
 from observe import ENDPOINT, PrivateParser
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 EXECUTABLE = '/mnt/d/textgen/2026/llama-b12236-bin-win-cuda-13.5-x64/llama-server.exe'
 NATIVE_BINARY = r'D:\textgen\2026\llama-b12236-bin-win-cuda-13.5-x64\llama-server.exe'
 
@@ -101,7 +101,7 @@ def run_model(store, model_key, limit=0, include_probes=False):
             if time.monotonic() > deadline:
                 raise TimeoutError('temporary model readiness timeout')
             time.sleep(1)
-        command = [sys.executable, str(ROOT / 'trial/observe.py'), '--store', str(store.path),
+        command = [sys.executable, str(ROOT / 'observe.py'), '--store', str(store.path),
                    'replay', '--model', model_key, '--endpoint', ENDPOINT]
         if limit:
             command.extend(['--limit', str(limit)])
@@ -142,7 +142,8 @@ def main(argv=None, *, store_factory=None):
     try:
         parser = PrivateParser(description=__doc__, allow_abbrev=False)
         parser.add_argument('--model', required=True, choices=tuple(MODEL_SPECS))
-        parser.add_argument('--store', type=Path, default=ROOT / 'trial/private-observation')
+        # TEMPORARY during the repo split: store lives in the legacy eval checkout.
+        parser.add_argument('--store', type=Path, default=Path.home() / 'Projects/safeagents-eval/trial/private-observation')
         parser.add_argument('--limit', type=int, default=0, help='maximum scores; 0 means all eligible captures')
         parser.add_argument('--include-probes', action='store_true')
         args = parser.parse_args(argv)

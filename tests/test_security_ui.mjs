@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import vm from 'node:vm';
-const file = new URL('./security-plugin/desktop/plugin.js', import.meta.url);
+const file = new URL('../src/hermes_safeagents/desktop/plugin.js', import.meta.url);
 const replayModels = [{ id: 'lite', label: 'D3 Lite' }, { id: 'qev', label: 'QEV' }];
 const scoreFixture = (role, id, score, extra = {}) => ({ role, model: { ...(replayModels.find(model => model.id === id) || { id: null, label: 'Unknown model' }), model_file_sha256: 'a'.repeat(64), native_template_sha256: 'b'.repeat(64) }, score, threshold: 0.88, would_flag: null, error: false, time: 1794355200, provisional: true, ...extra });
 const replayButton = (h, tree = h.draw()) => h.nodes(tree).find(n => n.type === 'Button' && n.props.children === 'Replay pending captures');
@@ -66,10 +66,10 @@ function harness(initialValues = {}) {
   const sdk = Object.fromEntries(['Button', 'Tip', 'Codicon', 'Popover', 'PopoverContent', 'PopoverTrigger', 'ScrollArea'].map(k => [k, k]));
   const values = { profile: 'default', gateway: 'local', connectionId: 'local', activeSessionId: 'runtime-s', focusedStoredSessionId: 's', focusedSessionOwner: { connectionId: 'local', profile: 'default' }, ...initialValues };
   const host = { state: Object.fromEntries(Object.keys(values).map(k => [k, { get: () => values[k], listen: () => () => {} }])) };
-  host.paneVisibility = id => ({ listen: () => () => {}, get: () => id === 'plugin-workspace:llm-usage' || (id === 'plugin-workspace:local-agent-security' && !!values.paneVisible) });
-  host.revealPane = id => { assert.equal(id, 'plugin-workspace:local-agent-security'); values.paneVisible = true; };
+  host.paneVisibility = id => ({ listen: () => () => {}, get: () => id === 'plugin-workspace:llm-usage' || (id === 'plugin-workspace:hermes-safeagents' && !!values.paneVisible) });
+  host.revealPane = id => { assert.equal(id, 'plugin-workspace:hermes-safeagents'); values.paneVisible = true; };
   host.openWorkspace = (id, options) => {
-    assert.equal(id, 'local-agent-security');
+    assert.equal(id, 'hermes-safeagents');
     const entry = { area: 'panes', title: options.title, data: { placement: 'main', dock: options.dock }, render: options.render };
     ctx.entries.push(entry); values.paneVisible = true;
     return () => { ctx.entries.splice(ctx.entries.indexOf(entry), 1); values.paneVisible = false; options.onClose?.(); };
@@ -243,7 +243,7 @@ test('chip tooltip uses native label and click toggles pane closed and open', ()
 
 test('native status chip opens scoped polling panel, raw capture stays local and native calls are not reviewable', async () => {
   const h = harness();
-  assert.equal(h.c.plugin?.id, 'local-agent-security');
+  assert.equal(h.c.plugin?.id, 'hermes-safeagents');
   h.c.plugin.register(h.ctx);
   assert.equal(h.ctx.entry.area, 'statusBar.right');
   h.close();

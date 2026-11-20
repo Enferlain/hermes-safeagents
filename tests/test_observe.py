@@ -13,6 +13,9 @@ from unittest.mock import patch
 
 ENDPOINT_BAD = 'http://example.invalid:18874'
 
+# Trusted runtime modules ship in the package; load them from there.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
+
 
 def load_observe():
     try:
@@ -412,11 +415,11 @@ class ObserveTests(unittest.TestCase):
     def test_audit_guard_isolated_child_and_real_store_cli(self):
         module = self.module()
         import subprocess
-        root = Path(__file__).resolve().parents[1]
+        root = Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'
         interpreter = sys.executable
         env = dict(os.environ, PYTHONDONTWRITEBYTECODE='1')
         cli_store = Path(self.tmp.name) / 'real-store'
-        command = [str(interpreter), str(root / 'trial/observe.py'), '--store', str(cli_store)]
+        command = [str(interpreter), str(root / 'observe.py'), '--store', str(cli_store)]
         status_result = subprocess.run(command + ['status'], capture_output=True, text=True, env=env)
         self.assertEqual(status_result.returncode, 0, status_result.stderr)
         self.assertEqual(json.loads(status_result.stdout)['traffic_captures'], 0)
@@ -440,7 +443,7 @@ for check in checks:
     else: raise AssertionError('audit guard did not deny capability')
 print('three capabilities denied')
 '''
-        result = subprocess.run([str(interpreter), '-c', script, str(root / 'trial'), str(cli_store), str(Path(self.tmp.name) / 'outside-store')], capture_output=True, text=True, env=env)
+        result = subprocess.run([str(interpreter), '-c', script, str(root), str(cli_store), str(Path(self.tmp.name) / 'outside-store')], capture_output=True, text=True, env=env)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), 'three capabilities denied')
         self.assertFalse((Path(self.tmp.name) / 'outside-store').exists())

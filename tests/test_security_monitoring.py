@@ -1,6 +1,7 @@
 """Monitoring integrations use isolated owner-only fixtures, never private records."""
 import importlib.util
 import json
+import shutil
 from pathlib import Path
 import tempfile
 import time
@@ -10,10 +11,11 @@ from unittest.mock import patch
 import httpx
 
 ROOT = Path(__file__).resolve().parent
+PKG = ROOT.parent / 'src' / 'hermes_safeagents'
 
 
 def load_service():
-    spec = importlib.util.spec_from_file_location('monitoring_service_test', ROOT / 'security-plugin/service.py')
+    spec = importlib.util.spec_from_file_location('monitoring_service_test', PKG / 'service.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -107,9 +109,6 @@ class MonitoringTests(unittest.TestCase):
 
 
     def test_conflicting_alias_labels_remain_explicit_until_reviewed_together(self):
-        import shutil
-        for name in ('observation.py', 'observe.py', 'decision_models.py'):
-            shutil.copyfile(ROOT / name, self.repo / 'trial' / name)
         capture = self.capture()
         self.write('calls.jsonl', [capture])
         self.write('journal.jsonl', [dict(id=3, time=101., verdict='flagged',
@@ -163,7 +162,7 @@ class MonitoringTests(unittest.TestCase):
         self.assertEqual(len(attention['events']), 1, 'technical capture errors are not review findings')
         # Exercise the actual frontend validator against the real backend output,
         # not a handwritten event fixture that can omit producer differences.
-        plugin = (ROOT / 'security-plugin/desktop/plugin.js').read_text()
+        plugin = (PKG / 'desktop' / 'plugin.js').read_text()
         validator = plugin[plugin.index('function attentionView(value)'):plugin.index('function resourceValid(')]
         checked = subprocess.run(['node', '-e', validator + '\n'
                                   + 'let data=""; process.stdin.on("data", c => data += c); '

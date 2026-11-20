@@ -1,0 +1,10 @@
+hermes-safeagents
+Copyright 2026 hermes-safeagents contributors
+
+This product includes software developed as part of the SafeAgents local-agent
+security trial.
+
+SafeAgents (https://github.com/huggingface/safeagents) is licensed under the
+Apache License, Version 2.0 and is pinned by commit hash in pyproject.toml;
+its runtime behavior and provenance requirements are re-verified on every
+upgrade.

@@ -11,7 +11,7 @@ import time
 from urllib.parse import urlsplit
 import uuid
 
-LOG = logging.getLogger('local-agent-security')
+LOG = logging.getLogger('hermes-safeagents')
 
 
 if __package__:
@@ -19,7 +19,7 @@ if __package__:
 else:
     # File-path fixture loaders do not provide a package for relative imports.
     _identity_spec = importlib.util.spec_from_file_location(
-        'local_agent_security_identity', Path(__file__).with_name('identity.py'))
+        'hermes_safeagents_identity', Path(__file__).with_name('identity.py'))
     _identity = importlib.util.module_from_spec(_identity_spec)
     _identity_spec.loader.exec_module(_identity)
     identifier = _identity.identifier
@@ -85,7 +85,7 @@ class Telemetry:
         if api_request_id is not None:
             components.append(api_request_id)
         key = json.dumps(components, separators=(',', ':'))
-        event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, 'local-agent-security:' + key))
+        event_id = str(uuid.uuid5(uuid.NAMESPACE_URL, 'hermes-safeagents:' + key))
         if stage == 'pre':
             outcome = 'proposed'
         elif status in ('ok', 'success', 'completed'):

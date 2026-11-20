@@ -116,7 +116,7 @@ function rawView(capture) {
   const capped = encoded.byteLength > 256 * 1024;
   return { content: new TextDecoder().decode(capped ? encoded.slice(0, 256 * 1024 - 4) : encoded), truncated: capped || capture?.truncated === true };
 }
-const ID = 'local-agent-security';
+const ID = 'hermes-safeagents';
 const PANE_ID = `plugin-workspace:${ID}`;
 const POLL_MS = 5000;
 const muted = { color: 'var(--ui-text-secondary)' };

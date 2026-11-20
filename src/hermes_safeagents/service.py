@@ -100,7 +100,15 @@ def model_catalog():
 
 class SecurityService:
     def __init__(self, repo_root=None, hermes_home=None, stack_components=None):
+        # repo_root is the runtime-STATE root (private-observation store, journals,
+        # the trusted check venv). TEMPORARY during the repo split: it still defaults
+        # to the legacy safeagents-eval checkout; the state-relocation step replaces
+        # this default with a proper plugin data directory.
         self.repo_root = Path(repo_root or Path.home() / 'Projects/safeagents-eval').absolute()
+        # Trusted runtime code ships with this package and always loads from its own
+        # directory, never from the state root or the evaluation checkout.
+        self.package_root = Path(__file__).resolve().parent
+        self.venv_python = self.repo_root / '.venv-trial/bin/python'
         self.hermes_home = Path(hermes_home or os.environ.get('HERMES_HOME') or Path.home() / '.hermes').absolute()
         self.store_path = self.repo_root / 'trial/private-observation'
         self.profile_allowed = (self.hermes_home.parent.name != 'profiles'
@@ -129,7 +137,7 @@ class SecurityService:
                       '--offline', '--alias', 'decision-bench'],
              'env': {}, 'log': logs / 'llama-18872.log', 'wait_port': True},
             {'id': 'judge', 'label': 'Judge adapter', 'port': 18873, 'requires': 'model',
-             'argv': [str(venv_python), str(repo / 'trial/judge_adapter.py'), '18873', '--model', 'lite'],
+             'argv': [str(venv_python), str(self.package_root / 'judge_adapter.py'), '18873', '--model', 'lite'],
              'env': {}, 'log': logs / 'judge-18873.log'},
             {'id': 'proxy', 'label': 'SafeAgents proxy', 'port': 8788,
              'argv': [str(venv_python), '-m', 'safeagents.cli', 'start', 'https://api.z.ai', '8788',
@@ -841,7 +849,7 @@ class SecurityService:
                 raise SecurityError(503, {'healthy': False, 'subsystems': subsystems})
             lockfile = None
             try:
-                script = self.repo_root / 'trial/replay_model.py'
+                script = self.package_root / 'replay_model.py'
                 self._safe_path(script)
                 if not script.is_file():
                     raise OSError('missing trusted replay')
@@ -860,7 +868,7 @@ class SecurityService:
                 fd = os.open(logpath, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
                 with os.fdopen(fd, 'wb') as output:
                     self._process = subprocess.Popen(
-                        [str(self.repo_root / '.venv-trial/bin/python'), str(script), '--model', model],
+                        [str(self.venv_python), str(script), '--model', model],
                         cwd=self.repo_root, stdin=subprocess.DEVNULL, stdout=output,
                         stderr=subprocess.STDOUT, shell=False, close_fds=True,
                         pass_fds=(lockfile.fileno(),))
@@ -897,7 +905,7 @@ class SecurityService:
 
     def _load_trusted(self, name):
         import importlib.util
-        path = self.repo_root / 'trial' / (name + '.py')
+        path = self.package_root / (name + '.py')
         self._safe_path(path)
         self._safe_path(path.with_name('decision_models.py'))
         spec = importlib.util.spec_from_file_location('_security_trusted_' + name, path)

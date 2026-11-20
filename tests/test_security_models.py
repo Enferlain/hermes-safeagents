@@ -1,12 +1,14 @@
 """Model-selection contracts exercised only with inert, private fixtures."""
 import importlib.util
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent
+PKG = ROOT.parent / 'src' / 'hermes_safeagents'
 
 
 def load(name, path):
@@ -22,10 +24,16 @@ class ModelContracts(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.repo = Path(self.temp.name) / 'repo'
         self.home = Path(self.temp.name) / 'hermes'
+        # Fixture package dir: deployed-layout isolation for trusted loads and
+        # stub scripts, same as SecurityTests.
+        self.pkg = Path(self.temp.name) / 'pkg'
+        self.pkg.mkdir()
+        for source in sorted(PKG.glob('*.py')):
+            shutil.copyfile(source, self.pkg / source.name)
         self.store = self.repo / 'trial/private-observation'
         self.store.mkdir(parents=True, mode=0o700)
         self.home.mkdir()
-        self.module = load('security_model_contract_service', ROOT / 'security-plugin/service.py')
+        self.module = load('security_model_contract_service', self.pkg / 'service.py')
         self.service = self.module.SecurityService(self.repo, self.home)
 
     def write(self, name, rows):
@@ -37,7 +45,7 @@ class ModelContracts(unittest.TestCase):
     def client(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        api = load('security_model_contract_api', ROOT / 'security-plugin/dashboard/plugin_api.py')
+        api = load('security_model_contract_api', PKG / 'dashboard' / 'plugin_api.py')
         api.service = self.service
         app = FastAPI()
         app.include_router(api.router)
@@ -60,7 +68,7 @@ class ModelContracts(unittest.TestCase):
         executable = self.repo / '.venv-trial/bin/python'
         executable.parent.mkdir(parents=True)
         executable.symlink_to(sys.executable)
-        (self.repo / 'trial/replay_model.py').write_text(
+        (self.pkg / 'replay_model.py').write_text(
             'import argparse\np=argparse.ArgumentParser()\np.add_argument("--model",required=True)\n'
             'a=p.parse_args()\nprint("selected="+a.model,flush=True)\n', encoding='utf-8')
         client = self.client()
@@ -210,11 +218,8 @@ class ModelContracts(unittest.TestCase):
         self.assertNotIn('TOPSECRET', json.dumps([available, mismatch, unknown]))
 
     def test_trusted_review_module_loads_without_trial_on_sys_path(self):
-        import shutil
         import subprocess
         import sys
-        for name in ('observe.py', 'decision_models.py'):
-            shutil.copyfile(ROOT / name, self.repo / 'trial' / name)
         self.write('calls.jsonl', [self.capture()])
         script = '''import importlib.util, json, sys
 from pathlib import Path
@@ -234,7 +239,7 @@ assert before == sys.path
 print('trusted import isolated: OK')
 '''
         result = subprocess.run([sys.executable, '-I', '-c', script,
-                str(ROOT / 'security-plugin/service.py'), str(self.repo), str(self.home)],
+                str(self.pkg / 'service.py'), str(self.repo), str(self.home)],
                 cwd=self.temp.name, capture_output=True, text=True, check=False, timeout=20)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), 'trusted import isolated: OK')

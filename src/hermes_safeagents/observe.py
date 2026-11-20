@@ -41,13 +41,13 @@ def _install_safety(path):
     # CLI replay only: irreversible audit hook must never be installed by imports.
     # Preload dependencies before the hook prevents outside-store bytecode writes.
     sys.dont_write_bytecode = True
-    root = str(Path(__file__).resolve().parents[1])
-    if root not in sys.path:
-        sys.path.insert(0, root)
-    import run  # local provenance reader; no main block execution
-    import ssl
-    from xaab.runner import install_safety
-    install_safety(Path(path), 18874)
+    import base64, hashlib, math, socket, ssl, struct, subprocess, time
+    import urllib.request
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location('_replay_safety', Path(__file__).with_name('replay_safety.py'))
+    _safety = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_safety)
+    _safety.install_safety(Path(path), 18874)
 
 
 class PrivateParser(argparse.ArgumentParser):
@@ -59,7 +59,9 @@ class PrivateParser(argparse.ArgumentParser):
 def main(argv=None, *, store_factory=None):
     try:
         parser = PrivateParser(description='Private local observation review; log-only, no enforcement changes.')
-        parser.add_argument('--store', default=str(Path(__file__).resolve().parent / 'private-observation'))
+        # TEMPORARY during the repo split: the observation store still lives in the
+        # legacy safeagents-eval checkout; the state-relocation step replaces this.
+        parser.add_argument('--store', default=str(Path.home() / 'Projects/safeagents-eval/trial/private-observation'))
         commands = parser.add_subparsers(dest='command', required=True)
         commands.add_parser('status')
         replay_args = commands.add_parser('replay')

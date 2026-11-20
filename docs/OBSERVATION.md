@@ -2,6 +2,15 @@
 
 ## Current behavior
 
+> **Repo split transition (2026-11-20).** The plugin source moved to
+> `~/Projects/hermes-safeagents` (`src/hermes_safeagents/`). During the split
+> transition the deployed runtime and these procedures still reference the
+> legacy `~/Projects/safeagents-eval/trial/` checkout for runtime state
+> (observation store, journals, `.venv-trial`) — those paths move in the
+> state-relocation step, and the duplicated copies in the eval checkout remain
+> in place until the eval cleanup step. The new repository needs no eval
+> checkout for code.
+
 The adapter on `127.0.0.1:18873` captures each judge request in `trial/private-observation/calls.jsonl`, including exact System One input, the actual live judge's full-precision score, provisional would-block marker, input/policy hashes, backend weight/template/calibration/build provenance, timestamp and correlation UUID. Errors are recorded as errors, never fabricated allow scores. Parse failures without a usable input remain errors and are not replayed.
 
 Model choice is explicit: `lite` (D3 Lite) or `qev` (QEV), defined in `decision_models.py`. Adapter startup validates `--model` against the backend's actual model provenance; it does not launch or replace that backend. Replay has a separate model choice and leaves the live judge unchanged. The existing processes and provisional 0.88 threshold were not changed by this implementation. This cutoff is not validated deployment calibration for either model, and must not be presented as QEV calibration. Both proxies remain whole-stack **log-only**: deterministic flags and model verdicts do not enforce blocking. Capturing failed records must not change the returned judge decision; capture-write failures appear in the adapter log and `/health` capture_errors counter.
