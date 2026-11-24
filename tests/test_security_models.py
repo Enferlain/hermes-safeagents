@@ -18,6 +18,9 @@ def load(name, path):
     return module
 
 
+decision_models = load('_security_test_decision_models', PKG / 'decision_models.py')
+
+
 class ModelContracts(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -93,7 +96,7 @@ class ModelContracts(unittest.TestCase):
 
     def provenance(self, key, digest='a'):
         filename = {'lite': 'vllm-d3-lite-Q8_0.gguf', 'qev': 'qev-0.8b-text-Q8_0.gguf'}[key]
-        return {'model_path': 'D:/textgen/models/decision/' + filename,
+        return {'model_path': decision_models.model_path(filename),
                 'model_file_sha256': digest * 64, 'native_template_sha256': 'b' * 64,
                 'private_extra': 'TOPSECRET'}
 

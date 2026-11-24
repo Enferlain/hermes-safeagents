@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 # Trusted runtime modules ship in the package; load them from there.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
+from decision_models import model_path as decision_model_path
 
 from test_observe import FixtureStore, capture
 
@@ -203,7 +204,7 @@ print('imports inert')
             self.assertEqual(code, 0)
             command = owned['command']
             self.assertEqual(command[0], '/mnt/d/textgen/2026/llama-b12236-bin-win-cuda-13.5-x64/llama-server.exe')
-            self.assertEqual(command[command.index('-m') + 1], 'D:/textgen/models/decision/' + filename)
+            self.assertEqual(command[command.index('-m') + 1], decision_model_path(filename))
             self.assertEqual(command[command.index('--host') + 1], '127.0.0.1')
             self.assertEqual(command[command.index('--port') + 1], '18874')
             for flag in ('--offline', '--no-agent', '--no-webui'):

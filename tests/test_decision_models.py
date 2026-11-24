@@ -22,7 +22,7 @@ class DecisionModelsTests(unittest.TestCase):
         for key, (label, filename) in expected.items():
             self.assertEqual(module.get_model(key), {
                 'id': key, 'label': label, 'filename': filename,
-                'model_path': 'D:/textgen/models/decision/' + filename})
+                'model_path': module.model_path(filename)})
         for key in (None, True, 1, [], {}, '', 'QEV', '../qev', 'INERT_PRIVATE_KEY'):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 module.get_model(key)

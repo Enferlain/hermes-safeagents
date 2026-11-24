@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
+from decision_models import model_path as decision_model_path
 
 import judge_adapter as adapter
 
@@ -16,7 +17,7 @@ import judge_adapter as adapter
 class JudgeModelTests(unittest.TestCase):
     def setUp(self):
         self.server = adapter.ThreadingHTTPServer(('127.0.0.1', 0), adapter.Handler)
-        self.server.model_provenance = {'model_path': 'D:/textgen/models/decision/qev-0.8b-text-Q8_0.gguf',
+        self.server.model_provenance = {'model_path': decision_model_path('qev-0.8b-text-Q8_0.gguf'),
             'model_file_sha256': 'a' * 64, 'native_template_sha256': 'b' * 64, 'private_extra': 'TOPSECRET'}
         thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         thread.start()
@@ -55,7 +56,7 @@ class JudgeModelTests(unittest.TestCase):
                 url = request if isinstance(request, str) else request.full_url
                 urls.append(url)
                 return io.BytesIO(json.dumps({'model_path':
-                    'D:/textgen/models/decision/vllm-d3-lite-Q8_0.gguf'}).encode())
+                    decision_model_path('vllm-d3-lite-Q8_0.gguf')}).encode())
         with patch.object(adapter.urllib.request, 'build_opener', return_value=Opener()), self.assertRaises(ValueError):
             adapter.score({'state': {}, 'questions': {}}, expected_model=self.server.model_provenance)
         self.assertEqual(urls, [adapter.LLAMA_URL.rstrip('/') + '/props'])

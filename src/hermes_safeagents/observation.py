@@ -97,10 +97,11 @@ def model_info(base_url):
         with opener.open(base_url+suffix,timeout=10) as handle:responses.append(json.load(handle))
     models,props=responses
     native_path=props['model_path'].replace('\\','/')
-    match=re.fullmatch(r'D:/textgen/models/decision/(vllm-d3-lite-Q8_0\.gguf|qev-0\.8b-text-Q8_0\.gguf)',native_path)
-    if match is None:raise ValueError('unexpected local model path; provenance not established')
-    local_path=Path('/mnt/d/textgen/models/decision')/match.group(1)
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from decision_models import MODEL_SPECS, wsl_path
+    chosen=next((s for s in MODEL_SPECS.values() if native_path.casefold()==s['model_path'].casefold()),None)
+    if chosen is None:raise ValueError('unexpected local model path; provenance not established')
+    local_path=wsl_path(chosen['filename'])
     from gguf_metadata import metadata
     gguf=metadata(local_path)
     with local_path.open('rb') as handle:digest=hashlib.file_digest(handle,'sha256').hexdigest()

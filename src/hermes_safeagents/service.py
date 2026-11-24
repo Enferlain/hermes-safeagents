@@ -129,7 +129,7 @@ class SecurityService:
         return [
             {'id': 'model', 'label': 'Decision model', 'port': 18872,
              'argv': ['/mnt/d/textgen/2026/llama-b12236-bin-win-cuda-13.5-x64/llama-server.exe',
-                      '-m', 'D:/textgen/models/decision/vllm-d3-lite-Q8_0.gguf',
+                      '-m', model_catalog().get_model('lite')['model_path'],
                       '--host', '127.0.0.1', '--port', '18872', '-c', '8192', '-np', '1',
                       '-ngl', 'all', '--device', 'CUDA0', '--split-mode', 'none', '-fa', 'on',
                       '-b', '8192', '-ub', '8192', '--fit', 'off', '--no-webui', '--no-agent',

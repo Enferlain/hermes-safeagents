@@ -15,6 +15,7 @@ ENDPOINT_BAD = 'http://example.invalid:18874'
 
 # Trusted runtime modules ship in the package; load them from there.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src' / 'hermes_safeagents'))
+from decision_models import model_path as decision_model_path
 
 
 def load_observe():
@@ -60,7 +61,7 @@ def capture(number=1, score=.2, origin='traffic'):
 
 def provenance(key='qev', **extra):
     filenames = {'qev': 'qev-0.8b-text-Q8_0.gguf', 'lite': 'vllm-d3-lite-Q8_0.gguf'}
-    return dict({'model_path': 'D:/textgen/models/decision/' + filenames[key],
+    return dict({'model_path': decision_model_path(filenames[key]),
                  'model_file_sha256': ('a' if key == 'lite' else 'b') * 64,
                  'native_template_sha256': 'c' * 64}, **extra)
 
@@ -102,7 +103,7 @@ class ObserveTests(unittest.TestCase):
         self.store.append('qev.jsonl', {'legacy': 'INERT_PRIVATE_UNKNOWN'})
         legacy_before = (self.store.path / 'qev.jsonl').read_bytes()
         for key, filename in [('lite', 'vllm-d3-lite-Q8_0.gguf'), ('qev', 'qev-0.8b-text-Q8_0.gguf')]:
-            model = {'model_path': 'D:/textgen/models/decision/' + filename,
+            model = {'model_path': decision_model_path(filename),
                      'model_file_sha256': ('a' if key == 'lite' else 'b') * 64,
                      'native_template_sha256': 'c' * 64,
                      'model_id': 'INERT_PRIVATE_ALIAS', 'server_build': {'build': 1}}
@@ -137,7 +138,7 @@ class ObserveTests(unittest.TestCase):
         def request(url, payload=None):
             requests.append((url, payload))
             if url.endswith('/props'):
-                return {'model_path': 'D:/textgen/models/decision/qev-0.8b-text-Q8_0.gguf'}
+                return {'model_path': decision_model_path('qev-0.8b-text-Q8_0.gguf')}
             return {'answers': {'block': {'noul': .95}}}
         info = lambda url: provenance(identity='qev-fixture')
         result = module.replay(self.store, request=request, model_provider=info, model_key='qev')
@@ -161,7 +162,7 @@ class ObserveTests(unittest.TestCase):
         row = capture()
         self.store.append('calls.jsonl', row)
         def request(url, payload=None):
-            return {'model_path': 'D:/textgen/models/decision/qev-0.8b-text-Q8_0.gguf'} if url.endswith('/props') else {'answers': {'block': {'noul': .5}}}
+            return {'model_path': decision_model_path('qev-0.8b-text-Q8_0.gguf')} if url.endswith('/props') else {'answers': {'block': {'noul': .5}}}
         info = lambda url: provenance(identity='fixture')
         for endpoint in ['http://localhost:18874', 'https://127.0.0.1:18874', ENDPOINT_BAD, 'http://127.0.0.1:18874/']:
             with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
@@ -186,7 +187,7 @@ class ObserveTests(unittest.TestCase):
         self.store.append('calls.jsonl', capture(2))
         def request(url, payload=None):
             if url.endswith('/props'):
-                return {'model_path': 'D:/textgen/models/decision/qev-0.8b-text-Q8_0.gguf'}
+                return {'model_path': decision_model_path('qev-0.8b-text-Q8_0.gguf')}
             if len(self.store.read('replays.jsonl')) == 1:
                 raise ConnectionError('INERT_PRIVATE_HTTP_BODY')
             return {'answers': {'block': {'noul': .7}}}
@@ -407,7 +408,7 @@ class ObserveTests(unittest.TestCase):
     def test_replay_model_identity_must_match_validated_props(self):
         module = self.module()
         self.store.append('calls.jsonl', capture())
-        request = lambda url, payload=None: {'model_path': 'D:/textgen/models/decision/qev-0.8b-text-Q8_0.gguf'} if url.endswith('/props') else {'answers': {'block': {'noul': .5}}}
+        request = lambda url, payload=None: {'model_path': decision_model_path('qev-0.8b-text-Q8_0.gguf')} if url.endswith('/props') else {'answers': {'block': {'noul': .5}}}
         with self.assertRaises(ValueError):
             module.replay(self.store, model_key='qev', request=request, model_provider=lambda url: provenance('lite'))
         self.assertEqual(self.store.read('replays.jsonl'), [])
