@@ -192,7 +192,7 @@ class MonitoringTests(unittest.TestCase):
         self.write('local-journal.jsonl', [dict(id=3, time=101., verdict='flagged', judge=None)], journal=True)
         self.write('calls.jsonl', [dict(self.capture(), error='TimeoutError', payload=None, score=None,
                                         input_sha256=None, policy_sha256=None)])
-        monitoring = {'state': 'verified', 'scope': 'current_managed_run', 'run': {'started_at': 90.},
+        monitoring = {'state': 'verified', 'identity': 'verified', 'scope': 'current_managed_run', 'run': {'started_at': 90.},
                       'guard': {'reviewed': 1}, 'judge': {},
                       'journal_path': str(self.repo / 'trial/journal.jsonl'),
                       'records': [{'call_id': 3, 'verdict': 'flagged', 'judge_outcome': None, 'time': 101.}]}
@@ -210,10 +210,10 @@ class MonitoringTests(unittest.TestCase):
         self.write('security-routes.jsonl', [dict(session_id='s', origin='native_hook',
                    route='safeagents-glm', api_mode='chat', time=time.time())])
         components = [{'id': name, 'healthy': True} for name in ('proxy_glm', 'decision', 'capture')]
-        unverified = {'state': 'unverified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
+        unverified = {'state': 'unverified', 'identity': 'unverified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
                       'guard': {k: None for k in ('reviewed', 'passed', 'warn', 'flagged', 'blocked')},
                       'judge': {}, 'records': [], 'journal_path': None}
-        verified = dict(unverified, state='verified')
+        verified = dict(unverified, state='verified', identity='verified')
         with patch.object(self.service, '_health', return_value=components), \
              patch.object(self.service, '_monitoring', return_value=unverified):
             degraded = self.service.status('s')['observation']
@@ -223,6 +223,29 @@ class MonitoringTests(unittest.TestCase):
              patch.object(self.service, '_monitoring', return_value=verified):
             observing = self.service.status('s')['observation']
         self.assertEqual(observing['state'], 'observing')
+
+    def test_recorded_runtime_errors_do_not_cap_observing_headline(self):
+        self.write('security-routes.jsonl', [dict(session_id='s', origin='native_hook',
+                   route='safeagents-glm', api_mode='chat', time=time.time())])
+        components = [{'id': name, 'healthy': True} for name in ('proxy_glm', 'decision', 'capture')]
+        run_with_errors = {'state': 'degraded', 'identity': 'verified', 'scope': 'current_managed_run',
+                           'run': None, 'policy': None, 'runtime_errors': 1,
+                           'guard': {k: None for k in ('reviewed', 'passed', 'warn', 'flagged', 'blocked')},
+                           'judge': {}, 'records': [], 'journal_path': None}
+        with patch.object(self.service, '_health', return_value=components), \
+             patch.object(self.service, '_monitoring', return_value=run_with_errors):
+            observing = self.service.status('s')['observation']
+        self.assertEqual(observing['state'], 'observing',
+                         'verified identity with recorded runtime errors keeps live coverage honest')
+        self.assertNotIn('unverified', observing['detail'].lower())
+
+    def test_route_detail_is_plain_language_age_not_epoch(self):
+        self.write('security-routes.jsonl', [dict(session_id='s', origin='native_hook',
+                   route='safeagents-glm', api_mode='chat', time=time.time())])
+        with patch.object(self.service, '_health', return_value=[]):
+            detail = self.service.status('s')['observation']['detail']
+        self.assertNotIn('(Unix)', detail)
+        self.assertRegex(detail, r'Route evidence is \d+ s old')
 
 
     def test_error_captures_are_not_reviewable_anywhere(self):

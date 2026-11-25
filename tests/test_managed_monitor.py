@@ -171,6 +171,8 @@ class ManagedMonitorTests(unittest.TestCase):
         f.log.write_text(f.banner + f.call(what="SECRET_FAKE_ARGUMENT") + notice + line)
         result = load_monitor().ManagedMonitor(f.run, f.proc).snapshot("safeagents-glm")
         self.assertEqual(result["state"], "degraded")
+        self.assertEqual(result["identity"], "verified",
+                         'runtime errors degrade run quality, not identity verification')
         self.assertEqual(result["runtime_errors"], 1)
         self.assertEqual(result["guard"], {"reviewed": 2, "passed": 1, "warn": 0, "flagged": 1, "blocked": 0})
 
@@ -188,6 +190,7 @@ class ManagedMonitorTests(unittest.TestCase):
         f.log.write_text(f.banner + f.call(what="SECRET_FAKE_ARGUMENT"))
         result = load_monitor().ManagedMonitor(f.run, f.proc).snapshot("safeagents-glm")
         self.assertEqual(result["state"], "verified")
+        self.assertEqual(result["identity"], "verified")
         self.assertEqual(result["guard"], {"reviewed": 1, "passed": 1, "warn": 0, "flagged": 0, "blocked": 0})
         self.assertEqual(result["run"]["id"], 1)
         self.assertEqual(result["run"]["listen"], f.listen)
@@ -268,8 +271,9 @@ class ManagedMonitorTests(unittest.TestCase):
                 f = self.fixture(options=["--log-only", "--plugin", spec,
                                           "--judge-url", "http://127.0.0.1:18873", "--journal", "journal.jsonl"])
                 f.log.write_text(f.banner + f.call())
-                self.assertNotEqual(load_monitor().ManagedMonitor(f.run, f.proc).snapshot("safeagents-glm")["state"],
-                                    "verified")
+                snapshot = load_monitor().ManagedMonitor(f.run, f.proc).snapshot("safeagents-glm")
+                self.assertNotEqual(snapshot["state"], "verified")
+                self.assertEqual(snapshot["identity"], "unverified")
 
     def with_pythonpath(self, f, path):
         f.p.joinpath("environ").write_bytes(f.p.joinpath("environ").read_bytes()
@@ -291,6 +295,7 @@ class ManagedMonitorTests(unittest.TestCase):
         f.log.write_text(f.banner + f.call() + chained + f.call(what="after-error"))
         result = load_monitor().ManagedMonitor(f.run, f.proc).snapshot("safeagents-glm")
         self.assertEqual(result["state"], "degraded")
+        self.assertEqual(result["identity"], "verified")
         self.assertEqual(result["runtime_errors"], 1, 'a chained exception is one runtime error')
         self.assertEqual(result["guard"], {"reviewed": 2, "passed": 2, "warn": 0, "flagged": 0, "blocked": 0})
         self.assertEqual(len(result["records"]), 2)

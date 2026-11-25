@@ -252,14 +252,13 @@ class SecurityTests(unittest.TestCase):
         self.write('security-routes.jsonl', [route])
         healthy = [dict(id=i, label=i, healthy=True, detail='Available.')
                    for i in ('proxy_glm', 'proxy_local', 'decision', 'capture')]
-        verified_run = {'state': 'verified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
+        verified_run = {'state': 'verified', 'identity': 'verified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
                         'guard': {}, 'judge': {}, 'records': [], 'journal_path': None}
         with patch.object(self.service, '_health', return_value=healthy), \
              patch.object(self.service, '_monitoring', return_value=verified_run):
             result = self.service.status('session-a')
         self.assertEqual(result['observation']['state'], 'observing')
-        self.assertIn('last request', result['observation']['detail'].lower())
-        self.assertIn(str(route['time']), result['observation']['detail'])
+        self.assertRegex(result['observation']['detail'], r'Route evidence is \d+ s old')
         healthy[0]['healthy'] = False
         with patch.object(self.service, '_health', return_value=healthy):
             self.assertEqual(self.service.status('session-a')['observation']['state'], 'degraded')
@@ -433,7 +432,7 @@ class SecurityTests(unittest.TestCase):
         self.write('security-routes.jsonl', [dict(session_id='s', origin='native_hook', time=time.time(),
                                                 route='safeagents-glm', api_mode='chat')])
         health = [dict(id=i, healthy=True) for i in ('proxy_glm', 'decision', 'capture')]
-        verified_run = {'state': 'verified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
+        verified_run = {'state': 'verified', 'identity': 'verified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
                         'guard': {}, 'judge': {}, 'records': [], 'journal_path': None}
         for name, subsystem in [('qev.jsonl', 'replay'), ('labels.jsonl', 'review'), ('calls.jsonl', 'activity')]:
             with self.subTest(name=name):
@@ -744,7 +743,7 @@ class StackControlTests(unittest.TestCase):
         self.assertGreaterEqual(elapsed, 1.5, 'start blocks until the model port answers before dependents launch')
         self.assertTrue(self._wait_running())
 
-    def test_model_timeout_skips_dependents(self):
+    def test_model_timeout_reports_timeout_and_skips_dependents(self):
         import sys, time
         components = self._components()
         components[0]['argv'] = [sys.executable, str(self.script), str(self.ports[0]), str(self._pidfile(0)), '30']
@@ -754,10 +753,53 @@ class StackControlTests(unittest.TestCase):
         self.service.stack_components = components
         result = self.service.start_stack()
         actions = {c['id']: c['action'] for c in result['components']}
-        self.assertEqual(actions['model'], 'launched')
+        self.assertEqual(actions['model'], 'timeout',
+                         'a spawned model whose port never answers is a timeout, not launched')
+        model = [c for c in result['components'] if c['id'] == 'model'][0]
+        self.assertIn(str(self.ports[0]), model['reason'])
         self.assertEqual(actions['judge'], 'unavailable', 'dependent not launched into a dead model')
+        judge = [c for c in result['components'] if c['id'] == 'judge'][0]
+        self.assertIn('model', judge['reason'])
         self.assertEqual(actions['proxy'], 'launched')
         self.assertTrue(self._wait_state('partial', deadline=15))
+
+    def test_spawn_failure_reports_reason_and_skips_dependents(self):
+        import sys
+        components = self._components()
+        blocked = Path(self.temp.name) / 'not-executable'
+        blocked.write_text(f'#!{sys.executable}\n')
+        blocked.chmod(0o644)
+        components[0]['argv'] = [str(blocked), str(self.script), str(self.ports[0]), str(self._pidfile(0))]
+        components[1]['requires'] = 'model'
+        self.service.stack_components = components
+        result = self.service.start_stack()
+        actions = {c['id']: c['action'] for c in result['components']}
+        self.assertEqual(actions['model'], 'unavailable')
+        self.assertIn('PermissionError', [c for c in result['components'] if c['id'] == 'model'][0]['reason'])
+        self.assertEqual(actions['judge'], 'unavailable',
+                         'a spawn failure must also skip declared dependents, not launch them blind')
+        log = (self.repo / 'trial' / 'logs' / 'stack-launches.log').read_text()
+        self.assertIn('model unavailable', log)
+        self.assertIn('PermissionError', log)
+
+    def test_launch_attempts_are_logged(self):
+        self.service.start_stack()
+        self.assertTrue(self._wait_running())
+        log = (self.repo / 'trial' / 'logs' / 'stack-launches.log').read_text()
+        self.assertEqual(log.count('model launched'), 1)
+        self.assertIn('judge launched', log)
+        self.assertIn('proxy launched', log)
+
+    def test_start_failure_reasons_reach_the_503_detail(self):
+        components = self._components()
+        missing = str(Path(self.temp.name) / 'missing-binary')
+        for component in components:
+            component['argv'][0] = missing
+        self.service.stack_components = components
+        with self.assertRaises(self.mod.SecurityError) as caught:
+            self.service.start_stack()
+        self.assertEqual(caught.exception.status, 503)
+        self.assertIn('missing-binary', str(caught.exception.detail))
 
     def _wait_state(self, state, deadline=15.):
         import time

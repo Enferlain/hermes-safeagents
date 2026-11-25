@@ -4,6 +4,11 @@ All notable changes are recorded here. This project follows the [Keep a Changelo
 
 ## [Unreleased]
 
+### Fixed
+
+- `POST /stack/start` no longer reports silent success on failure. Per-component responses now carry the component label plus a plain `reason` for failures; a spawned model whose port never answers reports `timeout` instead of `launched`; a spawn error or missing executable marks the component not-ready and skips its `requires`-declared dependents (previously only port timeouts did, so a spawn failure still launched the judge blind); every attempt is appended to `trial/logs/stack-launches.log`; and the 503 detail names the failing components. The pane offers Start monitoring in partial states (not only all-down), renders reported failure reasons next to the button, re-enables the button after a reported failure, and keeps the reasons visible until the stack reports running.
+- Observation headline no longer conflates run quality with coverage. `Observing` requires a verified managed-run identity — the monitoring snapshot now carries an explicit `identity` field separate from `state` — so a verified run with recorded runtime errors keeps observing while the Current-managed-run card reports the error count. "Managed-run identity unverified" now appears only when identity is actually unverified, never as a side effect of recorded runtime errors. Route-evidence detail is plain language ("Route evidence is N s old") instead of an epoch timestamp.
+
 ### Changed
 
 - Runtime state relocated to the plugin data directory `~/.hermes/hermes-safeagents/` (default profile only; mirrors the historical `trial/` sublayout so all path derivations and fixtures stay valid). Store, journal and venv defaults no longer reference any source checkout.

@@ -201,7 +201,7 @@ class ModelContracts(unittest.TestCase):
         with patch('socket.create_connection'), patch.object(self.module.httpx, 'Client',
                     side_effect=lambda **kw: original(transport=httpx.MockTransport(handle), **kw)), \
              patch.object(self.service, '_monitoring', return_value={
-                        'state': 'verified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
+                        'state': 'verified', 'identity': 'verified', 'scope': 'current_managed_run', 'run': None, 'policy': None,
                         'guard': {}, 'judge': {}, 'records': [], 'journal_path': None}):
             available = self.service.status('fixture')
             self.assertIn('judge', available)

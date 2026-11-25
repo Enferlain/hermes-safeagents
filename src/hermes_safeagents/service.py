@@ -165,20 +165,40 @@ class SecurityService:
     def start_stack(self):
         with self._stack_lock:
             actions = []
-            timed_out = set()
+            not_ready = set()
+            launch_log_path = self.repo_root / 'trial' / 'logs' / 'stack-launches.log'
+
+            def record(component, action, reason=None):
+                stamp = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                try:
+                    launch_log_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(launch_log_path, 'ab') as handle:
+                        handle.write((f"{stamp} {component['id']} {action}"
+                                      + (f" {reason}" if reason else "") + "\n").encode())
+                except OSError:
+                    pass  # the launch log is best-effort diagnostics, never a gate
+
             for component in self.stack_components:
                 if self._port_up(component['port']):
-                    actions.append({'id': component['id'], 'action': 'already_running'})
+                    actions.append({'id': component['id'], 'label': component['label'],
+                                    'action': 'already_running'})
                     continue
-                if component.get('requires') in timed_out:
+                if component.get('requires') in not_ready:
                     # A dependency never became ready; launching this component
                     # would crash it at startup (the judge verifies model
                     # identity at boot and exits on an unanswered probe).
-                    actions.append({'id': component['id'], 'action': 'unavailable'})
+                    reason = f"dependency '{component['requires']}' did not become ready"
+                    actions.append({'id': component['id'], 'label': component['label'],
+                                    'action': 'unavailable', 'reason': reason})
+                    record(component, 'unavailable', reason)
                     continue
                 argv0 = Path(component['argv'][0])
                 if not argv0.is_file():
-                    actions.append({'id': component['id'], 'action': 'unavailable'})
+                    reason = f"launch executable missing: {argv0}"
+                    actions.append({'id': component['id'], 'label': component['label'],
+                                    'action': 'unavailable', 'reason': reason})
+                    not_ready.add(component['id'])
+                    record(component, 'unavailable', reason)
                     continue
                 try:
                     env = dict(os.environ)
@@ -199,19 +219,34 @@ class SecurityService:
                     # startup and exits if /props is not answering yet. Model
                     # load itself is ~2s; the variable is Windows process
                     # start after a reboot, so the deadline covers that, and
-                    # on expiry the model is reported unavailable and declared
+                    # on expiry the model is reported as a timeout and declared
                     # dependents are skipped, never launched blind.
                     if component.get('wait_port'):
-                        deadline = time.time() + component.get('wait_deadline', 120)
-                        while time.time() < deadline and not self._port_up(component['port']):
+                        deadline = component.get('wait_deadline', 120)
+                        limit = time.time() + deadline
+                        while time.time() < limit and not self._port_up(component['port']):
                             time.sleep(1)
                         if not self._port_up(component['port']):
-                            timed_out.add(component['id'])
-                    actions.append({'id': component['id'], 'action': 'launched'})
-                except OSError:
-                    actions.append({'id': component['id'], 'action': 'unavailable'})
+                            reason = (f"port {component['port']} did not answer "
+                                      f"within {deadline}s after launch")
+                            not_ready.add(component['id'])
+                            actions.append({'id': component['id'], 'label': component['label'],
+                                            'action': 'timeout', 'reason': reason})
+                            record(component, 'timeout', reason)
+                            continue
+                    actions.append({'id': component['id'], 'label': component['label'],
+                                    'action': 'launched'})
+                    record(component, 'launched')
+                except OSError as exc:
+                    reason = f"{type(exc).__name__}: {exc}"
+                    not_ready.add(component['id'])
+                    actions.append({'id': component['id'], 'label': component['label'],
+                                    'action': 'unavailable', 'reason': reason})
+                    record(component, 'unavailable', reason)
             if not any(a['action'] in ('launched', 'already_running') for a in actions):
-                raise SecurityError(503, 'Monitoring stack components are not launchable from here.')
+                reasons = '; '.join(f"{a['label']}: {a['reason']}" for a in actions if a.get('reason'))
+                raise SecurityError(503, 'Monitoring stack components are not launchable from here.'
+                                         + (f' ({reasons})' if reasons else ''))
             detail = ('Components starting; the model takes a few seconds to load. '
                       'Status updates as each port comes up.')
             return {'state': 'starting', 'components': actions, 'detail': detail}
@@ -389,7 +424,8 @@ class SecurityService:
             row = max(rows, key=lambda r: r['time'])
             route = row.get('route')
             provider = route if route in ('safeagents-glm', 'safeagents-local') else None
-            detail = f"Last request observed at {row['time']} (Unix); not a guarantee about subsequent requests."
+            detail = (f"Route evidence is {max(0, int(time.time() - row['time']))} s old; "
+                      "not a guarantee about subsequent requests.")
             if not 0 <= time.time() - row['time'] <= 300:
                 return {'state': 'unknown', 'provider': provider, 'detail': 'Stale native evidence. ' + detail}
             if provider is None or row.get('api_mode') not in ('chat_completions', 'chat'):
@@ -433,7 +469,7 @@ class SecurityService:
             return unknown
 
     def _monitoring(self, route):
-        unknown = {'state': 'unverified', 'scope': 'current_managed_run',
+        unknown = {'state': 'unverified', 'identity': 'unverified', 'scope': 'current_managed_run',
                    'detail': 'Managed proxy run is unverified.', 'run': None, 'policy': None,
                    'guard': {key: None for key in ('reviewed', 'passed', 'warn', 'flagged', 'blocked')},
                    'judge': {key: None for key in ('consulted', 'allow', 'block', 'errors',
@@ -518,9 +554,12 @@ class SecurityService:
             'state': 'not_covered', 'provider': None, 'detail': 'Default profile only; this profile is not covered.'}
         healthy = records['calls'] is not None
         monitoring = self._monitoring(observation.get('provider'))
-        # Full observation requires verified managed-run identity for the watched
+        # Full observation requires verified managed-run IDENTITY for the watched
         # route; a reachable proxy alone proves neither identity nor coverage.
-        if observation.get('state') == 'observing' and monitoring.get('state') != 'verified':
+        # Recorded runtime errors are run-quality evidence (the monitoring card
+        # reports them), not a coverage failure: a verified, error-carrying run
+        # keeps observing honestly while its error count stays visible below.
+        if observation.get('state') == 'observing' and monitoring.get('identity') != 'verified':
             observation = {**observation, 'state': 'degraded',
                            'detail': observation['detail'] + ' Managed-run identity unverified; route reachable but not proven.'}
         attention = self._attention(events, subsystems, monitoring)

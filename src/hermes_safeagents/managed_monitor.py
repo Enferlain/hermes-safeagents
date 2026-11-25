@@ -255,7 +255,7 @@ def _installed(executable, cwd, pythonpath):
 
 
 def _empty():
-    return {"state": "unverified", "scope": "current_managed_run",
+    return {"state": "unverified", "identity": "unverified", "scope": "current_managed_run",
             "detail": "Managed run could not be verified.", "run": None, "policy": None,
             "guard": dict.fromkeys(GUARD_KEYS), "judge": dict.fromkeys(JUDGE_KEYS),
             "records": [], "runtime_errors": None, "journal_path": None}
@@ -604,6 +604,10 @@ class ManagedMonitor:
             result.update(run={"id": record["id"], "generation": generation,
                                "started_at": record["started"], "listen": record["listen"]},
                           policy=policy, journal_path=journal)
+            # Identity is proven from here on (unique run, listener, options, process and
+            # import provenance all matched). Later failures degrade evidence quality and
+            # the run's error accounting, never this verification.
+            result["identity"] = "verified"
             result["state"] = "degraded"
             result["detail"] = "Managed run verified; monitoring evidence is incomplete."
             log_signature = _signature(log.stat())

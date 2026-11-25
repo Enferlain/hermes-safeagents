@@ -328,11 +328,15 @@ function SecurityPanel({ ctx, scope, status }) {
   const events = useResource(ctx, scope, 'events', `/events?${params}`, [allSessions, includeProbes]);
   const replay = useResource(ctx, scope, 'replay', '/replay');
   const stack = useResource(ctx, scope, 'stack', '/stack');
-  // Launching the observation stack is a fixed backend action; the pane only
-  // triggers it when the backend reports every component down AND launchable.
+  // Launching the observation stack is a fixed backend action; the pane offers it
+  // whenever components are down AND the recipes resolve (off or partial state).
   const stackOff = !stack.error && stack.data?.state === 'off' && stack.data?.launchable === true;
+  const stackPartial = !stack.error && stack.data?.state === 'partial' && stack.data?.launchable === true;
   useEffect(() => {
-    if (stack.data?.state && stack.data.state !== 'off') { setStackBusy(false); setStackError(''); }
+    if (stack.data?.state && stack.data.state !== 'off') { setStackBusy(false); }
+  }, [stack.data?.state]);
+  useEffect(() => {
+    if (stack.data?.state === 'running') { setStackError(''); }
   }, [stack.data?.state]);
   const latest = useRef(null);
   latest.current = { status, events, replay, replayModel };
@@ -371,13 +375,18 @@ function SecurityPanel({ ctx, scope, status }) {
     return alive.current && sameScope(scope) && actionEpoch.current === epoch;
   }
   async function startStack() {
-    if (stackBusy || !stackOff || !allowedScope(scope)) return;
+    if (stackBusy || (!stackOff && !stackPartial) || !allowedScope(scope)) return;
     const epoch = actionEpoch.current;
     setStackError(''); setStackBusy(true);
     let failed = false;
     try {
-      await ctx.rest('/stack/start', { method: 'POST' });
+      const result = await ctx.rest('/stack/start', { method: 'POST' });
       // Success keeps the starting state; the /stack poll clears it once a port opens.
+      const failures = (result?.components || []).filter(c => c.action === 'timeout' || c.action === 'unavailable');
+      if (failures.length) {
+        failed = true;
+        if (actionCurrent(epoch)) setStackError(failures.map(c => `${c.label || c.id}: ${c.reason || c.action}`).join(' · '));
+      }
     } catch (error) {
       failed = true;
       if (actionCurrent(epoch)) setStackError(error?.message ? `Could not start the monitoring stack: ${error.message}` : 'Could not start the monitoring stack.');
@@ -554,13 +563,14 @@ function SecurityPanel({ ctx, scope, status }) {
       jsx('span', { 'aria-label': 'Current session identifier', title: session || 'No focused stored session', style: { fontSize: 11, overflowWrap: 'anywhere' }, children: session ? (session.length > 12 ? `${session.slice(0, 12)}…` : session) : 'None selected' }),
     ] }),
     jsx('h3', { style: heading, children: 'Status' }),
-    stackOff ? jsxs('div', { 'aria-label': 'Monitoring stack off', style: { border: '1px solid var(--ui-stroke-secondary)', borderRadius: 7, padding: '3px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'color-mix(in srgb, var(--ui-text-primary) 2%, transparent)' }, children: [
+    (stackOff || stackPartial) ? jsxs('div', { 'aria-label': stackOff ? 'Monitoring stack off' : 'Monitoring stack partly down', style: { border: '1px solid var(--ui-stroke-secondary)', borderRadius: 7, padding: '3px 9px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'color-mix(in srgb, var(--ui-text-primary) 2%, transparent)' }, children: [
       jsxs('div', { style: { minWidth: 0 }, children: [
-        jsx('div', { children: 'Monitoring stack is off.' }),
-        jsx('div', { style: { ...muted, fontSize: 11 }, children: 'Local observation of model traffic is not running; stored history and Replay stay available.' }),
+        jsx('div', { children: stackOff ? 'Monitoring stack is off.' : 'Monitoring stack is partly down.' }),
+        jsx('div', { style: { ...muted, fontSize: 11 }, children: stackOff ? 'Local observation of model traffic is not running; stored history and Replay stay available.' : 'Some monitoring components are down; starting launches only the down parts.' }),
       ] }),
       jsx(Button, { variant: 'ghost', size: 'sm', 'aria-label': 'Start monitoring', style: compactButton, disabled: stackBusy || !allowedScope(scope), onClick: startStack, children: 'Start monitoring' }),
-    ] }) : jsxs('div', { 'aria-label': 'Status overview', style: { border: '1px solid var(--ui-stroke-secondary)', borderRadius: 7, padding: '3px 9px', background: 'color-mix(in srgb, var(--ui-text-primary) 2%, transparent)' }, children: [
+    ] }) : null,
+    stackOff ? null : jsxs('div', { 'aria-label': 'Status overview', style: { border: '1px solid var(--ui-stroke-secondary)', borderRadius: 7, padding: '3px 9px', background: 'color-mix(in srgb, var(--ui-text-primary) 2%, transparent)' }, children: [
       statusLine('Observation', view.label, 'eye'),
       statusLine('Enforcement', view.enforcement, 'shield'),
       statusLine('Live judge', judgeLabel, 'pulse', 'Live judge'),
@@ -568,7 +578,7 @@ function SecurityPanel({ ctx, scope, status }) {
     stackOff ? null : jsx('p', { style: { ...muted, fontSize: 10, margin: '7px 0' }, children: 'Observation only · Hermes handles approvals.' }),
     scopeReason(scope) ? jsx('p', { children: scopeReason(scope) }) : null,
     status.error ? jsx('div', { role: 'alert', children: `Coverage request failed: ${status.error.message || status.error}` }) : null,
-    stackOff && stackBusy ? jsx('div', { 'aria-live': 'polite', style: muted, children: 'Starting monitoring… components appear as each port opens.' }) : null,
+    stackBusy ? jsx('div', { 'aria-live': 'polite', style: muted, children: 'Starting monitoring… components appear as each port opens.' }) : null,
     stackError ? jsx('div', { role: 'alert', children: stackError }) : null,
     stackOff ? null : jsx('div', { 'aria-label': 'Health summary', style: { fontSize: 11, marginTop: 8 }, children: healthGroups(components, status.data?.observation, status.error, view.stale).map(group => {
       const healthy = group.components.filter(component => componentState(component, status.error, view.stale) === 'Healthy').length;

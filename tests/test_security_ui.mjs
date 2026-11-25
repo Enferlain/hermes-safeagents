@@ -1632,6 +1632,72 @@ test('partial stack state keeps the full status layout', () => {
   assert.match(text, /unavailable/i);
 });
 
+test('partial launchable stack offers Start monitoring for the down components', () => {
+  const h = harness();
+  h.data.stack = { state: 'partial', launchable: true, components: stackComponents([true, false, false]) };
+  h.data.status = offlineStatus();
+  h.c.plugin.register(h.ctx); h.open();
+  const text = visibleText(h.draw());
+  assert.match(text, /Monitoring stack is partly down/);
+  assert.match(text, /unavailable/i, 'detailed component states stay visible');
+  const button = h.nodes(h.draw()).find(n => n.type === 'Button' && n.props.children === 'Start monitoring');
+  assert.ok(button, 'Start button present in the partial state');
+});
+
+test('partial but not launchable keeps the detailed layout and no Start button', () => {
+  const h = harness();
+  h.data.stack = { state: 'partial', launchable: false, components: stackComponents([true, false, false]) };
+  h.data.status = offlineStatus();
+  h.c.plugin.register(h.ctx); h.open();
+  const text = visibleText(h.draw());
+  assert.doesNotMatch(text, /partly down/);
+  assert.equal(h.nodes(h.draw()).some(n => n.type === 'Button' && n.props.children === 'Start monitoring'), false);
+});
+
+test('a start that reports component failures names them next to the button', async () => {
+  const h = harness();
+  h.data.stack = { state: 'partial', launchable: true, components: stackComponents([false, true, true]) };
+  h.data.status = offlineStatus();
+  h.c.plugin.register(h.ctx); h.open();
+  const original = h.ctx.rest.bind(h.ctx);
+  h.ctx.rest = async (path, options) => {
+    if (path === '/stack/start') return { state: 'starting', components: [
+      { id: 'model', label: 'Decision model', action: 'timeout', reason: 'port 18872 did not answer within 120 s' },
+      { id: 'judge', label: 'Judge adapter', action: 'already_running' },
+      { id: 'proxy', label: 'SafeAgents proxy', action: 'already_running' },
+    ] };
+    return original(path, options);
+  };
+  const button = h.nodes(h.draw()).find(n => n.type === 'Button' && n.props.children === 'Start monitoring');
+  await button.props.onClick();
+  const text = visibleText(h.draw());
+  assert.match(text, /Decision model/);
+  assert.match(text, /port 18872 did not answer within 120 s/);
+  assert.notEqual(h.nodes(h.draw()).find(n => n.type === 'Button' && n.props.children === 'Start monitoring')?.props.disabled, true,
+    'the button re-enables after a reported component failure');
+});
+
+test('start failure reasons persist while the stack stays partial and clear once running', async () => {
+  const h = harness();
+  h.data.stack = { state: 'partial', launchable: true, components: stackComponents([false, true, true]) };
+  h.data.status = offlineStatus();
+  h.c.plugin.register(h.ctx); h.open();
+  const original = h.ctx.rest.bind(h.ctx);
+  h.ctx.rest = async (path, options) => {
+    if (path === '/stack/start') return { state: 'starting', components: [
+      { id: 'model', label: 'Decision model', action: 'timeout', reason: 'port 18872 did not answer within 120 s' },
+    ] };
+    return original(path, options);
+  };
+  const button = h.nodes(h.draw()).find(n => n.type === 'Button' && n.props.children === 'Start monitoring');
+  await button.props.onClick();
+  h.draw();
+  assert.match(visibleText(h.draw()), /port 18872 did not answer/, 'the reason survives a partial-state poll');
+  h.data.stack = { state: 'running', launchable: true, components: stackComponents([true, true, true]) };
+  h.draw();
+  assert.doesNotMatch(visibleText(h.draw()), /port 18872 did not answer/, 'the reason clears once running');
+});
+
 test('attention rows awaiting review get a colored outline; labeled and conflicted rows are distinct', () => {
   const h = harness(); h.c.plugin.register(h.ctx);
   h.data.status.monitoring = monitoringFixture();
